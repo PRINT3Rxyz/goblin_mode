@@ -17,6 +17,7 @@ contract GoblinDistributor is Ownable, ReentrancyGuard {
     error GoblinDistributor__RewardsEmpty();
     error GoblinDistributor__Blacklisted();
     error GoblinDistributor_MaxRewardExceeded();
+    error GoblinDistributor__ClaimOpen();
 
     IERC20 public usdc;
 
@@ -99,6 +100,7 @@ contract GoblinDistributor is Ownable, ReentrancyGuard {
         uint256 userLen = _users.length;
         if (userLen != _rewardTotalUsdc.length) revert GoblinDistributor__ArraysUnmatched();
         if (userLen == 0) revert GoblinDistributor__SizeIsZero();
+        if (block.timestamp > CLAIM_OPENS) revert GoblinDistributor__ClaimOpen();
 
         lastWinnerUpdate = block.timestamp;
         uint256 addedRewards;
