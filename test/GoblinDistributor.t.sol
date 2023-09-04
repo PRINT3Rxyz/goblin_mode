@@ -15,7 +15,7 @@ contract GoblinDistributorTest is Test {
     function setUp() public {
         vm.startPrank(OWNER);
         usdc = new ERC20Mock();
-        goblin = new GoblinDistributor(address(usdc), block.timestamp + 1 days, block.timestamp + 8 days);
+        goblin = new GoblinDistributor(address(usdc), block.timestamp + 1 days);
         vm.stopPrank();
         assertEq(goblin.owner(), OWNER);
     }
