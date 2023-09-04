@@ -41,11 +41,11 @@ contract GoblinDistributor is Ownable, ReentrancyGuard {
 
     /// @param _usdc Address of the USDC token
     /// @param _start Timestamp of when claiming opens
-    /// @param _end Timestamp of when claiming closes
-    constructor(address _usdc, uint256 _start, uint256 _end) {
+    /// @dev Claiming period ends 7 days after the set start date
+    constructor(address _usdc, uint256 _start) {
         usdc = IERC20(_usdc);
         CLAIM_OPENS = _start;
-        CLAIM_ENDS = _end;
+        CLAIM_ENDS = _start + 7 days;
     }
 
     modifier isKeeperOrAbove() {
