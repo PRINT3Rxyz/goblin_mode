@@ -146,4 +146,8 @@ contract GoblinDistributor is Ownable, ReentrancyGuard {
     function getContractRewardBalance() public view returns (uint256) {
         return usdc.balanceOf(address(this));
     }
+
+    function getTimeToClaim() public view returns (uint256) {
+        return block.timestamp < CLAIM_OPENS ? CLAIM_OPENS - block.timestamp : 0;
+    }
 }
