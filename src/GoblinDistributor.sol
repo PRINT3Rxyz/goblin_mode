@@ -6,7 +6,6 @@ import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 
 contract GoblinDistributor is Ownable, ReentrancyGuard {
-    error GoblinDistributor__CallerNotKeeper();
     error GoblinDistributor__InsufficientFunds();
     error GoblinDistributor__ClaimingNotOver();
     error GoblinDistributor__ContractEmpty();
@@ -22,20 +21,15 @@ contract GoblinDistributor is Ownable, ReentrancyGuard {
     IERC20 public usdc;
 
     mapping(address => uint256) public rewards;
-    mapping(address => bool) public isKeeper;
     mapping(address => bool) public isBlacklisted;
-
-    uint256 public constant COOLDOWN_PERIOD = 300;
 
     uint256 public immutable CLAIM_OPENS; // Set To Time of Mainnet Launch
     uint256 public immutable CLAIM_ENDS; // Add Duration of Claiming Period in Seconds to CLAIM_OPENS
 
     uint256 public totalClaimableRewards;
-    uint256 public lastWinnerUpdate;
 
     event RewardsAdded(uint256 indexed amount);
     event RewardsClaimed(address indexed user, uint256 amount);
-    event KeeperSet(address indexed keeper, bool isKeeper);
     event RewardsWithdrawn(uint256 indexed amount);
     event WinnersAdded(uint256 indexed timestamp, uint256 indexed addedRewards);
 
@@ -48,34 +42,17 @@ contract GoblinDistributor is Ownable, ReentrancyGuard {
         CLAIM_ENDS = _start + 7 days;
     }
 
-    modifier isKeeperOrAbove() {
-        if (msg.sender != owner() && !isKeeper[msg.sender]) {
-            revert GoblinDistributor__CallerNotKeeper();
-        }
-        _;
-    }
-
-    /// @notice Grants a user abilities to manage the contract
-    /// @param _keeper Address of the user to grant abilities to
-    /// @param _isKeeper Whether the user should be granted or have their abilities revoked
-    /// @dev Keepers should only be trusted users
-    function setKeeper(address _keeper, bool _isKeeper) external onlyOwner {
-        isKeeper[_keeper] = _isKeeper;
-        emit KeeperSet(_keeper, _isKeeper);
-    }
-
     /// @notice Revokes a users ability to claim rewards
     /// @param _user Address of the user to blacklist
     /// @param _isBlacklisted Whether the user should be blacklisted or have their blacklist revoked
-    /// @dev Only to be used in the event of a user faking winning trades on Goblin Mode
-    function setBlacklisted(address _user, bool _isBlacklisted) external isKeeperOrAbove {
+    function setBlacklisted(address _user, bool _isBlacklisted) external onlyOwner {
         isBlacklisted[_user] = _isBlacklisted;
     }
 
     /// @notice Top up the contract with more rewards
     /// @param _amount Amount of USDC to top up the contract with
     /// @dev Must be called before claiming goes live, so users have sufficient funds to claim
-    function topUpFunds(uint256 _amount) external isKeeperOrAbove {
+    function topUpFunds(uint256 _amount) external onlyOwner {
         if (usdc.balanceOf(msg.sender) < _amount) revert GoblinDistributor__InsufficientFunds();
         usdc.transferFrom(msg.sender, address(this), _amount);
         emit RewardsAdded(_amount);
@@ -94,19 +71,18 @@ contract GoblinDistributor is Ownable, ReentrancyGuard {
     /// @notice Adds winners and the amount they have won to the contract
     /// @param _users Array of addresses of the winners
     /// @param _rewardTotalUsdc Array of the amount of USDC each winner has won
-    /// @dev IMPORTANT: Reward values should be set to maximum of 1e9 (1000 USDC) by keeper
-    function addWinners(address[] calldata _users, uint256[] calldata _rewardTotalUsdc) external isKeeperOrAbove {
-        if (block.timestamp < lastWinnerUpdate + COOLDOWN_PERIOD) revert GoblinDistributor__CooldownPeriod();
+    /// @dev Rewards capped at 1e9 (1000.000000 USDC)
+    function addWinners(address[] calldata _users, uint256[] calldata _rewardTotalUsdc) external onlyOwner {
         uint256 userLen = _users.length;
         if (userLen != _rewardTotalUsdc.length) revert GoblinDistributor__ArraysUnmatched();
         if (userLen == 0) revert GoblinDistributor__SizeIsZero();
         if (block.timestamp > CLAIM_OPENS) revert GoblinDistributor__ClaimOpen();
 
-        lastWinnerUpdate = block.timestamp;
         uint256 addedRewards;
 
         for (uint256 i = 0; i < userLen;) {
             uint256 _reward = _rewardTotalUsdc[i];
+            if (_reward > 1e9) revert GoblinDistributor_MaxRewardExceeded();
             rewards[_users[i]] += _reward;
             addedRewards += _reward;
             unchecked {
@@ -149,6 +125,7 @@ contract GoblinDistributor is Ownable, ReentrancyGuard {
         return usdc.balanceOf(address(this));
     }
 
+    /// @notice Returns the amount of time until claim opens
     function getTimeToClaim() public view returns (uint256) {
         return block.timestamp < CLAIM_OPENS ? CLAIM_OPENS - block.timestamp : 0;
     }

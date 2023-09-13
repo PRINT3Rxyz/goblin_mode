@@ -1,4 +1,4 @@
-//SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: MIT
 pragma solidity 0.8.20;
 
 import {Test, console} from "forge-std/Test.sol";
@@ -28,31 +28,6 @@ contract GoblinDistributorTest is Test {
         _;
     }
 
-    //////////////////
-    // Setter Tests //
-    //////////////////
-
-    function testSetKeeperWorksFromOwnerAddress() public {
-        vm.prank(OWNER);
-        goblin.setKeeper(USER, true);
-        assertEq(goblin.isKeeper(USER), true);
-    }
-
-    function testSetKeeperFailsIfCallerIsntOwner() public {
-        vm.prank(USER);
-        vm.expectRevert();
-        goblin.setKeeper(USER, true);
-    }
-
-    function testSetKeeperLetsOwnerRevokeKeeperAccess() public {
-        vm.prank(OWNER);
-        goblin.setKeeper(USER, true);
-        assertEq(goblin.isKeeper(USER), true);
-        vm.prank(OWNER);
-        goblin.setKeeper(USER, false);
-        assertEq(goblin.isKeeper(USER), false);
-    }
-
     ////////////////////////
     // Top Up Funds Tests //
     ///////////////////////
@@ -65,7 +40,7 @@ contract GoblinDistributorTest is Test {
         assertEq(goblin.getContractRewardBalance(), 1 ether);
     }
 
-    function testTopUpFundsFailsFromNonKeeper() public getCurrency {
+    function testTopUpFundsFailsFromNonOwner() public getCurrency {
         vm.startPrank(USER);
         usdc.approve(address(goblin), 100 ether);
         vm.expectRevert();
@@ -73,10 +48,8 @@ contract GoblinDistributorTest is Test {
         vm.stopPrank();
     }
 
-    function testTopUpFundsWorksFromKeepers() public getCurrency {
-        vm.prank(OWNER);
-        goblin.setKeeper(USER, true);
-        vm.startPrank(USER);
+    function testTopUpFundsWorksFromOwner() public getCurrency {
+        vm.startPrank(OWNER);
         usdc.approve(address(goblin), 100 ether);
         goblin.topUpFunds(1 ether);
         vm.stopPrank();
@@ -167,27 +140,24 @@ contract GoblinDistributorTest is Test {
 
     event WinnersAdded(uint256 indexed timestamp, uint256 indexed addedRewards);
 
-    function testAddWinnersLetsKeepersAddWinners() public getCurrency {
+    function testAddWinnersLetsOwnerAddWinners() public getCurrency {
         // Have to warp past cooldown period as timestamp starts at 0
         vm.warp(block.timestamp + 301);
-
-        vm.prank(OWNER);
-        goblin.setKeeper(USER, true);
 
         address[] memory addressArray = new address[](1);
         addressArray[0] = USER;
         uint256[] memory uintArray = new uint256[](1);
-        uintArray[0] = 1 ether;
+        uintArray[0] = 1e8;
 
-        vm.startPrank(USER);
+        vm.startPrank(OWNER);
         vm.expectEmit();
-        emit WinnersAdded(block.timestamp, 1 ether);
+        emit WinnersAdded(block.timestamp, 1e8);
         goblin.addWinners(addressArray, uintArray);
         vm.stopPrank();
-        assertEq(goblin.rewards(USER), 1 ether);
+        assertEq(goblin.rewards(USER), 1e8);
     }
 
-    function testAddWinnersFailsFromNonKeeper() public getCurrency {
+    function testAddWinnersFailsFromNonOwner() public getCurrency {
         // Have to warp past cooldown period as timestamp starts at 0
         vm.warp(block.timestamp + 301);
 
@@ -205,31 +175,25 @@ contract GoblinDistributorTest is Test {
         // Have to warp past cooldown period as timestamp starts at 0
         vm.warp(block.timestamp + 301);
 
-        vm.prank(OWNER);
-        goblin.setKeeper(USER, true);
-
         address[] memory addressArray = new address[](100);
         for (uint256 i = 0; i < 100; i++) {
             addressArray[i] = USER;
         }
         uint256[] memory uintArray = new uint256[](100);
         for (uint256 i = 0; i < 100; i++) {
-            uintArray[i] = 1 ether;
+            uintArray[i] = 1e6;
         }
 
-        vm.startPrank(USER);
+        vm.startPrank(OWNER);
         vm.expectEmit();
-        emit WinnersAdded(block.timestamp, 100 ether);
+        emit WinnersAdded(block.timestamp, 1e8);
         goblin.addWinners(addressArray, uintArray);
         vm.stopPrank();
-        assertEq(goblin.rewards(USER), 100 ether);
+        assertEq(goblin.rewards(USER), 1e8);
     }
 
     function testAddWinnersWithMultipleUsers() public getCurrency {
         vm.warp(block.timestamp + 301);
-
-        vm.prank(OWNER);
-        goblin.setKeeper(USER, true);
 
         address[] memory addressArray = new address[](100);
         for (uint256 i = 0; i < 100; i++) {
@@ -241,16 +205,16 @@ contract GoblinDistributorTest is Test {
         }
         uint256[] memory uintArray = new uint256[](100);
         for (uint256 i = 0; i < 100; i++) {
-            uintArray[i] = 1 ether;
+            uintArray[i] = 1e6;
         }
-        vm.startPrank(USER);
+        vm.startPrank(OWNER);
         vm.expectEmit();
-        emit WinnersAdded(block.timestamp, 100 ether);
+        emit WinnersAdded(block.timestamp, 1e8);
         goblin.addWinners(addressArray, uintArray);
         vm.stopPrank();
 
-        assertEq(goblin.rewards(USER), 50 ether);
-        assertEq(goblin.rewards(OWNER), 50 ether);
+        assertEq(goblin.rewards(USER), 5e7);
+        assertEq(goblin.rewards(OWNER), 5e7);
     }
 
     /////////////////////////
@@ -263,7 +227,6 @@ contract GoblinDistributorTest is Test {
         vm.warp(block.timestamp + 301);
 
         vm.startPrank(OWNER);
-        goblin.setKeeper(USER, true);
         usdc.approve(address(goblin), 100 ether);
         goblin.topUpFunds(100 ether);
         vm.stopPrank();
@@ -274,31 +237,28 @@ contract GoblinDistributorTest is Test {
         }
         uint256[] memory uintArray = new uint256[](100);
         for (uint256 i = 0; i < 100; i++) {
-            uintArray[i] = 1 ether;
+            uintArray[i] = 1e6; // Updated to 1e6 (1 USD)
         }
 
-        vm.startPrank(USER);
+        vm.startPrank(OWNER);
         goblin.addWinners(addressArray, uintArray);
         vm.stopPrank();
-        assertEq(goblin.rewards(USER), 100 ether);
+        assertEq(goblin.rewards(USER), 1e8); // Updated to 1e8 (100 USD)
         _;
     }
 
     function testClaimRewardsLetsUsersClaimRewardsTheCorrectAmountOfRewards() public getCurrency {
         vm.warp(block.timestamp + 301);
 
-        vm.prank(OWNER);
-        goblin.setKeeper(USER, true);
-
         address[] memory addressArray = new address[](1);
         addressArray[0] = USER;
         uint256[] memory uintArray = new uint256[](1);
-        uintArray[0] = 1 ether;
+        uintArray[0] = 1e8;
 
-        vm.startPrank(USER);
+        vm.startPrank(OWNER);
         goblin.addWinners(addressArray, uintArray);
         vm.stopPrank();
-        assertEq(goblin.rewards(USER), 1 ether);
+        assertEq(goblin.rewards(USER), 1e8);
 
         vm.startPrank(OWNER);
         usdc.approve(address(goblin), 100 ether);
@@ -308,9 +268,9 @@ contract GoblinDistributorTest is Test {
         vm.warp(block.timestamp + 1 days);
         vm.prank(USER);
         vm.expectEmit();
-        emit RewardsClaimed(USER, 1 ether);
+        emit RewardsClaimed(USER, 1e8);
         goblin.claimRewards();
-        assertEq(usdc.balanceOf(address(goblin)), 99 ether);
+        assertEq(usdc.balanceOf(address(goblin)), 100 ether - 1e8);
     }
 
     function testClaimRewardsRevertsIfUserBlacklisted() public getCurrency addRewards {
@@ -344,9 +304,8 @@ contract GoblinDistributorTest is Test {
         vm.warp(block.timestamp + 301);
 
         vm.startPrank(OWNER);
-        goblin.setKeeper(USER, true);
         usdc.approve(address(goblin), 100 ether);
-        goblin.topUpFunds(100 ether);
+        goblin.topUpFunds(1e5);
         vm.stopPrank();
 
         address[] memory addressArray = new address[](100);
@@ -355,10 +314,10 @@ contract GoblinDistributorTest is Test {
         }
         uint256[] memory uintArray = new uint256[](100);
         for (uint256 i = 0; i < 100; i++) {
-            uintArray[i] = 2 ether;
+            uintArray[i] = 1e6;
         }
 
-        vm.startPrank(USER);
+        vm.startPrank(OWNER);
         goblin.addWinners(addressArray, uintArray);
         vm.stopPrank();
 
@@ -375,13 +334,13 @@ contract GoblinDistributorTest is Test {
         assertEq(goblin.totalClaimableRewards(), 0 ether);
     }
 
-    function testClaimRewardsIncreasesUsersUsdcBalance() public getCurrency addRewards {
+    function testClaimRewardsIncreasesUsersUSDCBalance() public getCurrency addRewards {
         uint256 balBefore = usdc.balanceOf(USER);
         vm.warp(block.timestamp + 1 days);
         vm.prank(USER);
         goblin.claimRewards();
         uint256 balAfter = usdc.balanceOf(USER);
-        assertEq(balAfter - balBefore, 100 ether);
+        assertEq(balAfter - balBefore, 1e8);
     }
 
     //////////////////
@@ -389,7 +348,7 @@ contract GoblinDistributorTest is Test {
     //////////////////
 
     function testGetRewardsReturnsUsersTotalAvailableRewards() public getCurrency addRewards {
-        assertEq(goblin.rewards(USER), 100 ether);
+        assertEq(goblin.rewards(USER), 1e8); // Updated to 1e8 (100 USD)
     }
 
     function testGetIsClaimingLiveReturnsWhetherClaimingIsLive() public {
